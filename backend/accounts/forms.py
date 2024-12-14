@@ -1,15 +1,15 @@
-# accounts/forms.py
-
 from django import forms
 from .models import CustomUser
+
 
 class RegisterForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput())
     password_confirm = forms.CharField(widget=forms.PasswordInput())
+    profile_photo = forms.ImageField(required=False)
 
     class Meta:
         model = CustomUser
-        fields = ['username', 'email', 'first_name', 'last_name', 'password']
+        fields = ['username', 'email', 'password', 'profile_photo']
 
     def clean_password_confirm(self):
         password = self.cleaned_data.get('password')
