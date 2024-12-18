@@ -1,4 +1,4 @@
-FROM node:23.3.0
+FROM node:14.17.3
 
 WORKDIR /frontend
 

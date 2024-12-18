@@ -1,0 +1,147 @@
+/* Общий стиль страницы */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #e7ebf0;
+}
+
+/* Контейнер всей страницы */
+.home-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Верхняя панель навигации */
+.navbar {
+    width: 100%;
+    background-color: #d0dae6;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.logo {
+    width: 40px;
+    height: 40px;
+    background-color: #717dba;
+    border-radius: 50%;
+}
+
+.nav-links {
+    list-style: none;
+    display: flex;
+    gap: 20px;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-links li a {
+    text-decoration: none;
+    color: #354b76;
+    font-size: 16px;
+    font-weight: bold;
+    border-bottom: 2px solid transparent;
+    transition: border-color 0.3s;
+}
+
+.nav-links li a:hover {
+    border-bottom: 2px solid #354b76;
+}
+
+.search-container {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.search-container input {
+    padding: 5px;
+    border: 1px solid #d0dae6;
+    border-radius: 3px;
+}
+
+.search-button {
+    background-color: #717dba;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.profile-icon {
+    width: 40px;
+    height: 40px;
+    background-color: #717dba;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: bold;
+}
+
+/* Основной контент */
+.content {
+    width: 80%;
+    background-color: #b0d7e7;
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 20px;
+    text-align: center;
+}
+
+.content h1 {
+    color: #354b76;
+}
+
+.content p {
+    color: #354b76;
+    font-size: 18px;
+}
+
+.auth-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+/* Кнопки "Вход" и "Регистрация" */
+.auth-button {
+    text-decoration: none;
+    background-color: #717dba;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-size: 14px;
+    font-weight: bold;
+    transition: background-color 0.3s;
+}
+
+.auth-button:hover {
+    background-color: #5a68a5;
+}
+
+.profile-photo {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.logout-button {
+    background-color: #d9534f;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    margin-left: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.logout-button:hover {
+    background-color: #c9302c;
+}
