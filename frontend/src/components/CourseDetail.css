@@ -21,6 +21,7 @@
 
 .course-content p {
     color: #462E4C;
+    font-weight: bold;
     font-size: 20px;
     text-align: justify;
 }
@@ -28,4 +29,27 @@
 .course-content h2 {
     color: #462E4C;
     margin-top: 20px;
+    font-family: 'P2', sans-serif;
+}
+
+.in-course-button {
+    border-radius: 0px;
+    color: #462E4C;
+    transition: .2s linear;
+    background: transparent;
+    text-decoration: none;
+    display: flex;
+    margin-top: 20px;
+    margin-right: 10px;
+    padding: 10px;
+    padding-left: 0px;
+    border: 2px solid transparent;
+    box-shadow: 0px -6px 0 #462E4C inset;
+    font-family: 'P2', sans-serif;
+    font-size: 15px;
+}
+
+.in-course-button:hover {
+    color: #FF6E79;
+    box-shadow: 0px -6px 0 #FF6E79 inset;
 }
