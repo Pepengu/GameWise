@@ -1,28 +1,73 @@
 .profile-container {
+    width: 100%;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    margin: 50px auto;
-    padding: 20px;
-    max-width: 400px;
-    background-color: white;
+}
+
+h1 {
+    color: #462E4C;
+}
+
+.profile-content {
+    width: 90%;
+    display: flex;
+    justify-content: space-between;
+    margin: 20px auto;
+    background: linear-gradient(to bottom, #FFD4D2, #FF6E79);
     border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    text-align: center;
+    padding: 20px;
+    min-height: 100vh;
 }
 
-.profile-photo-large {
+.profile-photo {
     width: 100px;
-    height: 100px;
+    max-height: 100px;
     border-radius: 50%;
-    margin-bottom: 20px;
+    margin-right: 20px;
 }
 
-.profile-container h1 {
-    color: #354b76;
-    margin: 0;
+.profile-details {
+    flex-grow: 1;
 }
 
-.profile-container p {
-    color: #354b76;
+.profile-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.edit-form {
+    width: 90%;
+}
+
+.edit-form label {
+    display: block;
+    margin-bottom: 10px;
+}
+
+.edit-form input[type="text"],
+.edit-form input[type="email"],
+.edit-form input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+}
+
+.logout-button,
+.edit-form button {
+    display: inline-block;
+    padding-bottom: 10px;
+    margin-top: 20px;
+    background-color: transparent;
+    color: #462E4C;
+    border: none;
+    text-decoration: none;
+    transition: background-color 0.3s;
+    font-family: 'P2', sans-serif;
+}
+
+.logout-button:hover,
+.edit-form button:hover {
+    color: #FFD4D2;
+    box-shadow: 0px -6px 0 #FFD4D2 inset;
 }

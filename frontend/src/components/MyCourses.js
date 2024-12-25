@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import Navbar from './Navbar';
 import Footer from './Footer';
-//import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import './MyCourses.css';
 import './Catalog.css';
 import math from './math.jpg';
@@ -12,7 +12,7 @@ const MyCourses = () => {
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  //const navigate = useNavigate();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchUserCourses = async () => {
@@ -45,9 +45,9 @@ const MyCourses = () => {
   if (loading) return <div>Загрузка...</div>;
   if (error) return <div>{error}</div>;
 
-  //const handleCourseClick = (id) => {
-  //  navigate(`/courses/${id}`);
-  //};
+  const handleCourseClick = (id) => {
+    navigate(`/my-courses/${id}`);
+  };
 
   return (
     <div className="my-courses">
@@ -57,10 +57,13 @@ const MyCourses = () => {
         <div className="courses-list">
           {enrollments.length > 0 ? (
             enrollments.map((course) => (
-              <div key={course.id} className="course-card">
-                <img src={math} alt={course.title} className="course-image" />
+              <div className='course-card' key={course.id}>
                 <h2>{course.title}</h2>
-              </div>
+                <img src={math} alt={course.title} className="course-image" />
+                <button onClick={() => handleCourseClick(course.id)} className='course-button'>
+                  ПЕРЕЙТИ К ИЗУЧЕНИЮ
+            </button>
+          </div>
             ))
           ) : (
             <p>У вас пока нет курсов.</p>

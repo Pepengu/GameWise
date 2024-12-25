@@ -18,5 +18,8 @@ urlpatterns = [
     ),
     path("api/users/<int:user_id>/edit/", views.edit_user, name="edit_user"),
     path("api/delete_user/<int:user_id>/", views.delete_user, name="delete_user"),
-    path("api/courses/users", views.count_user_courses, name="count_user_courses"),
+    path("api/courses/users", views.count_user_correct_answers, name="count_user_correct_answers"),
+    path("api/courses/<int:course_id>/add-form/", views.add_form, name="add_form"),
+    path("api/courses/<int:course_id>/questions/", views.get_course_questions, name="get_course_questions"),
+    path("api/courses/<int:course_id>/check-answers/", views.check_answers, name="check_answers"),
 ]

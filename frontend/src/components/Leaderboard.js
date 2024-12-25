@@ -12,8 +12,8 @@ const Leaderboard = () => {
       .get('http://127.0.0.1:8000/accounts/api/courses/users')
       .then((response) => {
 
-        const sortedData = response.data.user_courses_count.sort(
-          (a, b) => b.course_count - a.course_count
+        const sortedData = response.data.user_correct_answers.sort(
+          (a, b) => b.correct_answers - a.correct_answers
         );
         setLeaderboardData(sortedData);
       })
@@ -38,7 +38,7 @@ const Leaderboard = () => {
               <tr key={user.user_id}>
                 <td>{index + 1}</td>
                 <td>{user.username}</td>
-                <td>{user.course_count}</td>
+                <td>{user.correct_answers}</td>
               </tr>
             ))}
           </tbody>
