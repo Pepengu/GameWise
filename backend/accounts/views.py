@@ -3,10 +3,10 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 from django.core.files.storage import default_storage
-from .models import CustomUser, Course, Enrollment, Option, Question, QuizResult
+from .models import CustomUser, Course, Enrollment, Option, Question, QuizResult, Achievement, UserAchievement, count_user_correct_answers
 import json
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum
+from django.db.models import F, Sum, Count
 
 
 @csrf_exempt
@@ -85,7 +85,7 @@ def login_view(request):
 def profile_view(request):
     userid = request.GET.get("userid")
     if not userid:
-        return JsonResponse({"error": "userid is required"}, status=400)
+        return JsonResponse(data={"error": "userid is required"}, status=400)
 
     user = get_object_or_404(CustomUser, id=userid)
 
@@ -95,13 +95,27 @@ def profile_view(request):
         else None
     )
 
+    # Получение ачивок пользователя
+    user_achievements = UserAchievement.objects.filter(user=user).select_related('achievement')
+    achievements = [
+        {
+            "title": ua.achievement.title,
+            "description": ua.achievement.description,
+            "image": request.build_absolute_uri(ua.achievement.image.url) if ua.achievement.image else None,
+            "date_earned": ua.date_earned,
+        }
+        for ua in user_achievements
+    ]
+
     data = {
         "id": user.id,
         "is_superuser": user.is_superuser,
         "username": user.username,
         "email": user.email,
         "profile_photo": profile_photo_url,
+        "achievements": achievements,  # Добавляем ачивки в ответ
     }
+
     return JsonResponse(data, status=200)
 
 
@@ -214,7 +228,7 @@ def edit_user(request, user_id):
                     user.profile_photo = request.FILES["profile_photos"]
 
             user.save()
-
+            check_and_award_achievements(user)  # Проверка достижений после обновления профиля
             return JsonResponse(
                 {
                     "status": "success",
@@ -225,27 +239,17 @@ def edit_user(request, user_id):
 
         except json.JSONDecodeError:
             return JsonResponse(
-                {
-                    "status": "error",
-                    "message": "Invalid JSON payload",
-                    "status_code": 400,
-                },
-                status=400,
+                {"status": "error", "message": "Invalid JSON payload", "status_code": 400}, status=400
             )
-
         except Exception as e:
             return JsonResponse(
                 {"status": "error", "message": str(e), "status_code": 500}, status=500
             )
 
     return JsonResponse(
-        {
-            "status": "error",
-            "message": f"{request.method} method not allowed",
-            "status_code": 405,
-        },
-        status=405,
+        {"status": "error", "message": f"{request.method} method not allowed", "status_code": 405}, status=405
     )
+
 
 
 @csrf_exempt
@@ -363,6 +367,8 @@ def check_answers(request, course_id):
                 correct_answers=correct_answers,
             )
 
+            check_and_award_achievements(user)  # Проверяем достижения после завершения курса
+
             return JsonResponse({
                 "correct": correct_answers,
                 "total": total_questions,
@@ -373,3 +379,68 @@ def check_answers(request, course_id):
 
     return JsonResponse({"error": "Метод не поддерживается"}, status=405)
 
+
+
+def check_and_award_achievements(user):
+    # 1. Первое достижение — первый пройденный курс
+    if not UserAchievement.objects.filter(user=user, achievement__condition='first_course').exists():
+        if QuizResult.objects.filter(user=user).exists():
+            try:
+                achievement = Achievement.objects.get(condition='first_course')
+                UserAchievement.objects.create(user=user, achievement=achievement)
+            except Achievement.DoesNotExist:
+                pass  # Достижение с таким условием не создано
+
+    # 2. Достижение за топ-1 в рейтинге
+    if not UserAchievement.objects.filter(user=user, achievement__condition='top_1').exists():
+        user_correct_answers = QuizResult.objects.filter(user=user).aggregate(total=Sum('correct_answers'))['total'] or 0
+        top_user = CustomUser.objects.annotate(total_correct=Sum('quizresult__correct_answers')).order_by('-total_correct').first()
+        if top_user == user:
+            try:
+                achievement = Achievement.objects.get(condition='top_1')
+                UserAchievement.objects.create(user=user, achievement=achievement)
+            except Achievement.DoesNotExist:
+                pass
+
+    # 3. Достижение за все правильные ответы в одном курсе
+    if not UserAchievement.objects.filter(user=user, achievement__condition='all_correct').exists():
+        completed_courses = Course.objects.filter(
+            questions__quizresult__user=user,
+            questions__quizresult__correct_answers=F('questions__count')  # Все правильные ответы
+        ).distinct()
+        if completed_courses.exists():
+            try:
+                achievement = Achievement.objects.get(condition='all_correct')
+                UserAchievement.objects.create(user=user, achievement=achievement)
+            except Achievement.DoesNotExist:
+                pass
+
+    # 4. Завершение трёх курсов
+    if not UserAchievement.objects.filter(user=user, achievement__condition='three_courses').exists():
+        completed_courses_count = QuizResult.objects.filter(user=user).values('course').distinct().count()
+        if completed_courses_count >= 3:
+            try:
+                achievement = Achievement.objects.get(condition='three_courses')
+                UserAchievement.objects.create(user=user, achievement=achievement)
+            except Achievement.DoesNotExist:
+                pass
+
+
+@csrf_exempt
+def user_achievements_view(request, user_id):
+    try:
+        user = get_object_or_404(CustomUser, id=user_id)
+        achievements = UserAchievement.objects.filter(user=user).select_related("achievement")
+        response_data = [
+            {
+                "id": ua.achievement.id,
+                "title": ua.achievement.title,
+                "description": ua.achievement.description,
+                "image": request.build_absolute_uri(ua.achievement.image.url) if ua.achievement.image else None,
+                "date_earned": ua.date_earned.isoformat(),
+            }
+            for ua in achievements
+        ]
+        return JsonResponse({"achievements": response_data}, status=200)
+    except CustomUser.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
