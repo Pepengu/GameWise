@@ -43,7 +43,7 @@ DOCKERHUB_TOKEN="sample_token"
 
 # Данные
 
-![DataBaseScheme.png](relative%20DataBaseScheme.png?raw=true "Схема базы данных")
+![DataBaseScheme.png](DataBaseScheme.png?raw=true "Схема базы данных")
 
 ## Пользователи
 | Название | Содержимое | Тип данных | Ограничения | Стандартное значение | 
