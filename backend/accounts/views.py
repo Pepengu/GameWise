@@ -1,12 +1,12 @@
 from django.contrib.auth import authenticate, login, get_user_model
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 from django.core.files.storage import default_storage
-from .models import CustomUser, Course, Enrollment, Option, Question, QuizResult, Achievement, UserAchievement, count_user_correct_answers
+from .models import CustomUser, Course, Enrollment, Option, Question, QuizResult, Achievement, UserAchievement, Form
 import json
-from django.contrib.auth.decorators import login_required
-from django.db.models import F, Sum, Count
+from django.db.models import Sum, Count, F
 
 
 @csrf_exempt
@@ -85,7 +85,7 @@ def login_view(request):
 def profile_view(request):
     userid = request.GET.get("userid")
     if not userid:
-        return JsonResponse(data={"error": "userid is required"}, status=400)
+        return JsonResponse({"error": "userid is required"}, status=400)
 
     user = get_object_or_404(CustomUser, id=userid)
 
@@ -95,27 +95,15 @@ def profile_view(request):
         else None
     )
 
-    # Получение ачивок пользователя
-    user_achievements = UserAchievement.objects.filter(user=user).select_related('achievement')
-    achievements = [
-        {
-            "title": ua.achievement.title,
-            "description": ua.achievement.description,
-            "image": request.build_absolute_uri(ua.achievement.image.url) if ua.achievement.image else None,
-            "date_earned": ua.date_earned,
-        }
-        for ua in user_achievements
-    ]
-
     data = {
         "id": user.id,
         "is_superuser": user.is_superuser,
         "username": user.username,
         "email": user.email,
         "profile_photo": profile_photo_url,
-        "achievements": achievements,  # Добавляем ачивки в ответ
+        "level": user.level,  # Новое поле
+        "experience": user.experience,  # Новое поле
     }
-
     return JsonResponse(data, status=200)
 
 
@@ -228,7 +216,7 @@ def edit_user(request, user_id):
                     user.profile_photo = request.FILES["profile_photos"]
 
             user.save()
-            check_and_award_achievements(user)  # Проверка достижений после обновления профиля
+
             return JsonResponse(
                 {
                     "status": "success",
@@ -239,17 +227,27 @@ def edit_user(request, user_id):
 
         except json.JSONDecodeError:
             return JsonResponse(
-                {"status": "error", "message": "Invalid JSON payload", "status_code": 400}, status=400
+                {
+                    "status": "error",
+                    "message": "Invalid JSON payload",
+                    "status_code": 400,
+                },
+                status=400,
             )
+
         except Exception as e:
             return JsonResponse(
                 {"status": "error", "message": str(e), "status_code": 500}, status=500
             )
 
     return JsonResponse(
-        {"status": "error", "message": f"{request.method} method not allowed", "status_code": 405}, status=405
+        {
+            "status": "error",
+            "message": f"{request.method} method not allowed",
+            "status_code": 405,
+        },
+        status=405,
     )
-
 
 
 @csrf_exempt
@@ -296,43 +294,138 @@ def count_user_correct_answers(request):
 
 
 @csrf_exempt
-def add_form(request, course_id):
+def create_form(request, course_id):
     if request.method == "POST":
         try:
-            data = json.loads(request.body)
-            course = Course.objects.get(id=course_id)
+            course = get_object_or_404(Course, id=course_id)
+            data = request.POST
+            files = request.FILES
 
-            for question_data in data["questions"]:
-                question = Question.objects.create(course=course, text=question_data["text"])
+            form = Form.objects.create(
+                course=course,
+                title=data.get("title"),
+                description=data.get("description"),
+            )
 
-                for option_data in question_data["options"]:
-                    Option.objects.create(
-                        question=question,
-                        text=option_data["text"],
-                        is_correct=option_data["is_correct"]
-                    )
-            return JsonResponse({"message": "Форма успешно добавлена!"})
+            if "image" in files:
+                form.image = files["image"]
+                form.save()
+
+            return JsonResponse({"message": "Form created successfully", "form_id": form.id}, status=201)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
-    return JsonResponse({"error": "Метод не поддерживается"}, status=405)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
 
 
+@csrf_exempt
+def get_course_forms(request, course_id):
+    if request.method == "GET":
+        try:
+            course = get_object_or_404(Course, id=course_id)
+            forms = course.forms.all().order_by("-id")  # Сортировка по id в порядке убывания
+            response_data = []
+
+            for form in forms:
+                form_data = {
+                    "id": form.id,
+                    "title": form.title,
+                    "description": form.description,
+                    "image": request.build_absolute_uri(form.image.url) if form.image else None,
+                }
+                response_data.append(form_data)
+
+            return JsonResponse({"forms": response_data}, status=200)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
+@csrf_exempt
+def add_question_to_form(request, form_id):
+    if request.method == "POST":
+        try:
+            form = get_object_or_404(Form, id=form_id)
+            data = request.POST
+            files = request.FILES
+
+            question = Question.objects.create(
+                form=form,
+                text=data.get("text"),
+            )
+
+            if "image" in files:
+                question.image = files["image"]
+                question.save()
+
+            return JsonResponse({"message": "Question added successfully", "question_id": question.id}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
+@csrf_exempt
+def add_option_to_question(request, question_id):
+    if request.method == "POST":
+        try:
+            question = get_object_or_404(Question, id=question_id)
+            data = request.POST
+            files = request.FILES
+
+            option = Option.objects.create(
+                question=question,
+                text=data.get("text"),
+                is_correct=data.get("is_correct", False),
+            )
+
+            if "image" in files:
+                option.image = files["image"]
+                option.save()
+
+            return JsonResponse({"message": "Option added successfully", "option_id": option.id}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
+@csrf_exempt
 def get_course_questions(request, course_id):
     if request.method == "GET":
         try:
             course = Course.objects.get(id=course_id)
-            questions = course.questions.all()
+            forms = course.forms.all()  # Получаем все формы для курса
             response_data = []
 
-            for question in questions:
-                options = question.options.all()
-                response_data.append({
-                    'id': question.id,
-                    'text': question.text,
-                    'options': [{'id': option.id, 'text': option.text} for option in options],
-                })
+            for form in forms:
+                form_data = {
+                    "form_id": form.id,
+                    "title": form.title,
+                    "description": form.description,
+                    "image": request.build_absolute_uri(form.image.url) if form.image else None,
+                    "questions": []
+                }
 
-            return JsonResponse({"questions": response_data})
+                for question in form.questions.all():  # Получаем все вопросы для формы
+                    question_data = {
+                        "id": question.id,
+                        "text": question.text,
+                        "image": request.build_absolute_uri(question.image.url) if question.image else None,
+                        "options": []
+                    }
+
+                    for option in question.options.all():  # Получаем все варианты ответов для вопроса
+                        option_data = {
+                            "id": option.id,
+                            "text": option.text,
+                            "is_correct": option.is_correct,
+                            "image": request.build_absolute_uri(option.image.url) if option.image else None,
+                        }
+                        question_data["options"].append(option_data)
+
+                    form_data["questions"].append(question_data)
+
+                response_data.append(form_data)
+
+            return JsonResponse({"forms": response_data}, status=200)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
     return JsonResponse({"error": "Метод не поддерживается"}, status=405)
@@ -357,22 +450,30 @@ def check_answers(request, course_id):
                 question = Question.objects.get(id=question_id)
                 total_questions += 1
 
+                # Проверяем, что вопрос принадлежит курсу
+                if question.form.course != course:
+                    return JsonResponse({"error": f"Question {question_id} does not belong to this course"}, status=400)
+
                 correct_option = question.options.filter(is_correct=True).first()
                 if correct_option and correct_option.id == selected_option_id:
                     correct_answers += 1
 
+            # Начисляем опыт пользователю
+            user.add_experience(correct_answers)
+
+            # Сохраняем результат теста
             QuizResult.objects.create(
                 user=user,
                 course=course,
                 correct_answers=correct_answers,
             )
 
-            check_and_award_achievements(user)  # Проверяем достижения после завершения курса
-
             return JsonResponse({
                 "correct": correct_answers,
                 "total": total_questions,
-                "score": f"Всего правильных ответов {correct_answers} из {total_questions} вопросов"
+                "score": f"Всего правильных ответов {correct_answers} из {total_questions} вопросов",
+                "level": user.level,  # Возвращаем текущий уровень пользователя
+                "experience": user.experience,  # Возвращаем текущий опыт пользователя
             })
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
@@ -380,67 +481,171 @@ def check_answers(request, course_id):
     return JsonResponse({"error": "Метод не поддерживается"}, status=405)
 
 
+@csrf_exempt
+def create_achievements(request):
 
-def check_and_award_achievements(user):
-    # 1. Первое достижение — первый пройденный курс
-    if not UserAchievement.objects.filter(user=user, achievement__condition='first_course').exists():
-        if QuizResult.objects.filter(user=user).exists():
-            try:
-                achievement = Achievement.objects.get(condition='first_course')
-                UserAchievement.objects.create(user=user, achievement=achievement)
-            except Achievement.DoesNotExist:
-                pass  # Достижение с таким условием не создано
+    default_achievements = [
+        {
+            "title": "Первый курс",
+            "description": "Пройдите первый курс, чтобы получить эту ачивку.",
+            "condition": "first_course",
+        },
+        {
+            "title": "Топ-1 в рейтинге",
+            "description": "Станьте лучшим игроком в рейтинге.",
+            "condition": "top_1",
+        },
+        {
+            "title": "Все задачи курса выполнены верно",
+            "description": "Выполните все задачи курса с правильными ответами.",
+            "condition": "all_correct",
+        },
+        {
+            "title": "Три курса выполнены",
+            "description": "Пройдите три курса, чтобы получить эту ачивку.",
+            "condition": "three_courses",
+        },
+    ]
 
-    # 2. Достижение за топ-1 в рейтинге
-    if not UserAchievement.objects.filter(user=user, achievement__condition='top_1').exists():
-        user_correct_answers = QuizResult.objects.filter(user=user).aggregate(total=Sum('correct_answers'))['total'] or 0
-        top_user = CustomUser.objects.annotate(total_correct=Sum('quizresult__correct_answers')).order_by('-total_correct').first()
-        if top_user == user:
-            try:
-                achievement = Achievement.objects.get(condition='top_1')
-                UserAchievement.objects.create(user=user, achievement=achievement)
-            except Achievement.DoesNotExist:
-                pass
+    created_achievements = []
+    for achievement_data in default_achievements:
+        achievement, created = Achievement.objects.get_or_create(
+            condition=achievement_data["condition"],
+            defaults={
+                "title": achievement_data["title"],
+                "description": achievement_data["description"],
+            }
+        )
+        if created:
+            created_achievements.append({
+                "title": achievement.title,
+                "description": achievement.description,
+                "condition": achievement.condition,
+            })
 
-    # 3. Достижение за все правильные ответы в одном курсе
-    if not UserAchievement.objects.filter(user=user, achievement__condition='all_correct').exists():
-        completed_courses = Course.objects.filter(
-            questions__quizresult__user=user,
-            questions__quizresult__correct_answers=F('questions__count')  # Все правильные ответы
-        ).distinct()
-        if completed_courses.exists():
-            try:
-                achievement = Achievement.objects.get(condition='all_correct')
-                UserAchievement.objects.create(user=user, achievement=achievement)
-            except Achievement.DoesNotExist:
-                pass
-
-    # 4. Завершение трёх курсов
-    if not UserAchievement.objects.filter(user=user, achievement__condition='three_courses').exists():
-        completed_courses_count = QuizResult.objects.filter(user=user).values('course').distinct().count()
-        if completed_courses_count >= 3:
-            try:
-                achievement = Achievement.objects.get(condition='three_courses')
-                UserAchievement.objects.create(user=user, achievement=achievement)
-            except Achievement.DoesNotExist:
-                pass
+    return JsonResponse({
+        "default_achievements": default_achievements,
+        "status": "success",
+    })
 
 
 @csrf_exempt
 def user_achievements_view(request, user_id):
     try:
         user = get_object_or_404(CustomUser, id=user_id)
-        achievements = UserAchievement.objects.filter(user=user).select_related("achievement")
+
+        all_achievements = Achievement.objects.all()
+
+        # Проверяем "Первый курс" (id=1)
+        if not UserAchievement.objects.filter(user=user, achievement_id=1).exists():
+            if QuizResult.objects.filter(user=user).exists():
+                achievement = get_object_or_404(Achievement, id=1)
+                UserAchievement.objects.create(user=user, achievement=achievement)
+
+        # Проверяем "Топ-1 в рейтинге" (id=2)
+        if not UserAchievement.objects.filter(user=user, achievement_id=2).exists():
+            user_total_score = QuizResult.objects.filter(user=user).aggregate(total=Sum('correct_answers'))['total'] or 0
+            top_score_user = (
+                QuizResult.objects.values('user_id')
+                .annotate(total=Sum('correct_answers'))
+                .order_by('-total')
+                .first()
+            )
+            if top_score_user and top_score_user['user_id'] == user.id:
+                achievement = get_object_or_404(Achievement, id=2)
+                UserAchievement.objects.create(user=user, achievement=achievement)
+
+        # Проверяем "Все задачи выполнены верно" (id=3)
+        if not UserAchievement.objects.filter(user=user, achievement_id=3).exists():
+            courses = QuizResult.objects.filter(user=user).values('course_id').distinct()
+            for course in courses:
+                total_questions = Question.objects.filter(course_id=course['course_id']).count()
+                correct_answers = QuizResult.objects.filter(
+                    user=user, course_id=course['course_id']
+                ).aggregate(total=Sum('correct_answers'))['total'] or 0
+                if total_questions == correct_answers:
+                    achievement = get_object_or_404(Achievement, id=3)
+                    UserAchievement.objects.create(user=user, achievement=achievement)
+                    break
+
+        # Проверяем "Три курса выполнены" (id=4)
+        if not UserAchievement.objects.filter(user=user, achievement_id=4).exists():
+            completed_courses = Enrollment.objects.filter(user=user).values('course_id').distinct().count()
+            if completed_courses >= 3:
+                achievement = get_object_or_404(Achievement, id=4)
+                UserAchievement.objects.create(user=user, achievement=achievement)
+
+        # Формируем ответ с полученными ачивками
+        user_achievements = UserAchievement.objects.filter(user=user).select_related("achievement")
         response_data = [
             {
                 "id": ua.achievement.id,
                 "title": ua.achievement.title,
                 "description": ua.achievement.description,
-                "image": request.build_absolute_uri(ua.achievement.image.url) if ua.achievement.image else None,
                 "date_earned": ua.date_earned.isoformat(),
             }
-            for ua in achievements
+            for ua in user_achievements
         ]
+
         return JsonResponse({"achievements": response_data}, status=200)
-    except CustomUser.DoesNotExist:
-        return JsonResponse({"error": "User not found"}, status=404)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@login_required
+def edit_course(request, course_id):
+    if request.method in ["PUT", "PATCH"]:
+        try:
+            course = get_object_or_404(Course, id=course_id)
+
+            # Проверяем, что пользователь является автором курса или суперпользователем
+            if request.user != course.author and not request.user.is_superuser:
+                return JsonResponse({"error": "You do not have permission to edit this course"}, status=403)
+
+            data = json.loads(request.body.decode("utf-8"))
+
+            # Обновляем поля курса, если они переданы в запросе
+            if "title" in data:
+                course.title = data["title"]
+            if "description" in data:
+                course.description = data["description"]
+            if "tags" in data:
+                course.tags = data["tags"]
+            if "content" in data:
+                course.content = data["content"]
+
+            course.save()
+
+            return JsonResponse({"message": "Course updated successfully"}, status=200)
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON payload"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
+@csrf_exempt
+def get_notifications(request, user_id):
+    if request.method == "GET":
+        try:
+            user = get_object_or_404(CustomUser, id=user_id)
+            notifications = user.notifications.order_by("-created_at").values("message", "created_at")
+            return JsonResponse({"notifications": list(notifications)}, status=200)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
+@csrf_exempt
+def get_level_history(request, user_id):
+    if request.method == "GET":
+        try:
+            user = get_object_or_404(CustomUser, id=user_id)
+            history = user.level_history.order_by("-achieved_at").values("level", "achieved_at")
+            return JsonResponse({"level_history": list(history)}, status=200)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
